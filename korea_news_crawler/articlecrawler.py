@@ -134,11 +134,11 @@ class ArticleCrawler(object):
             remaining_tries = remaining_tries - 1
         raise ResponseTimeout()
 
-    def crawling(self, category_name):
+    def crawling(self, category_name,keyword):
         # Multi Process PID
         print(category_name + " PID: " + str(os.getpid()))    
 
-        writer = Writer(category='Article', article_category=category_name, date=self.date)
+        writer = Writer(category='Article', article_category=keyword, date=self.date)
         # 기사 url 형식
         url_format = f'http://news.naver.com/main/list.nhn?mode=LSD&mid=sec&sid1={self.categories.get(category_name)}&date='
         # start_year년 start_month월 start_day일 부터 ~ end_year년 end_month월 end_day일까지 기사를 수집합니다.
@@ -207,7 +207,8 @@ class ArticleCrawler(object):
                     time = document_content.find_all('span',{'class':"media_end_head_info_datestamp_time _ARTICLE_DATE_TIME"})[0]['data-date-time']
 
                     # CSV 작성
-                    writer.write_row([time, category_name, text_company, text_headline, text_sentence, content_url])
+                    if keyword in text_headline:
+                        writer.write_row([time, category_name, text_company, text_headline, text_sentence, content_url])
 
                     del time
                     del text_company, text_sentence, text_headline
@@ -222,15 +223,16 @@ class ArticleCrawler(object):
         writer.close()
         print('x')
 
-    def start(self):
+    def start(self,keyword):
         # MultiProcess 크롤링 시작
         for category_name in self.selected_categories:
-            proc = Process(target=self.crawling, args=(category_name,))
+            proc = Process(target=self.crawling, args=(category_name,keyword))
             proc.start()
 
 
 if __name__ == "__main__":
+    keyword = input('키워드를 입력하세요: ')
     Crawler = ArticleCrawler()
-    Crawler.set_category('생활문화')
-    Crawler.set_date_range('2018-01', '2018-02')
-    Crawler.start()
+    Crawler.set_category('정치')
+    Crawler.set_date_range('2024-01-21', '2024-02-01')
+    Crawler.start(keyword)
