@@ -139,6 +139,7 @@ class ArticleCrawler(object):
         print(category_name + " PID: " + str(os.getpid()))    
 
         writer = Writer(category='Article', article_category=keyword, date=self.date)
+        writer.write_row(['time', 'category_name', 'text_company', 'text_headline', 'text_sentence', 'content_url'])
         # 기사 url 형식
         url_format = f'http://news.naver.com/main/list.nhn?mode=LSD&mid=sec&sid1={self.categories.get(category_name)}&date='
         # start_year년 start_month월 start_day일 부터 ~ end_year년 end_month월 end_day일까지 기사를 수집합니다.
@@ -158,8 +159,12 @@ class ArticleCrawler(object):
             # 각 페이지에 있는 기사들의 url 저장
             post_urls = []
             for line in temp_post:
-                # 해당되는 page에서 모든 기사들의 URL을 post_urls 리스트에 넣음
-                post_urls.append(line.a.get('href'))
+                if line.dt.get('class'):
+                    title=line.a.img.get('alt')
+                else:
+                    title=line.a.get_text(strip=True)
+                if keyword in title:
+                    post_urls.append(line.a.get('href'))
             del temp_post
 
             for content_url in post_urls:  # 기사 url
@@ -234,5 +239,5 @@ if __name__ == "__main__":
     keyword = input('키워드를 입력하세요: ')
     Crawler = ArticleCrawler()
     Crawler.set_category('정치')
-    Crawler.set_date_range('2024-01-21', '2024-02-01')
+    Crawler.set_date_range('2024-01-01', '2024-02-01')
     Crawler.start(keyword)
