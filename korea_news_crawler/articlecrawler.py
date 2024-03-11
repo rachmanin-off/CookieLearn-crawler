@@ -9,9 +9,9 @@ import re
 from time import sleep
 from bs4 import BeautifulSoup
 from multiprocessing import Process
-from korea_news_crawler.exceptions import *
-from korea_news_crawler.articleparser import ArticleParser
-from korea_news_crawler.writer import Writer
+from exceptions import *
+from articleparser import ArticleParser
+from writer import Writer
 
 class ArticleCrawler(object):
     def __init__(self):
@@ -239,5 +239,5 @@ if __name__ == "__main__":
     keyword = input('키워드를 입력하세요: ')
     Crawler = ArticleCrawler()
     Crawler.set_category('정치')
-    Crawler.set_date_range('2024-01-01', '2024-02-01')
+    Crawler.set_date_range('2024-01-30', '2024-02-02')
     Crawler.start(keyword)
