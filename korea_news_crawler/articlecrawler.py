@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8, euc-kr -*-
-
+from tqdm import tqdm
 import os
 import platform
 import calendar
@@ -8,7 +8,9 @@ import requests
 import re
 from time import sleep
 from bs4 import BeautifulSoup
-from multiprocessing import Process
+from multiprocessing import Process, pool
+from concurrent.futures import ThreadPoolExecutor
+import concurrent.futures
 from exceptions import *
 from articleparser import ArticleParser
 from writer import Writer
@@ -119,7 +121,7 @@ class ArticleCrawler(object):
                     # totalpage는 네이버 페이지 구조를 이용해서 page=10000으로 지정해 totalpage를 알아냄
                     # page=10000을 입력할 경우 페이지가 존재하지 않기 때문에 page=totalpage로 이동 됨 (Redirect)
                     totalpage = ArticleParser.find_news_totalpage(url + "&page=10000")
-                    for page in range(1, totalpage + 1):
+                    for page in range(1, totalpage + 1,10):
                         made_urls.append(url + "&page=" + str(page))
         return made_urls
 
@@ -147,86 +149,91 @@ class ArticleCrawler(object):
         print(f'{category_name} Urls are generated')
 
         print(f'{category_name} is collecting ...')
-        for url in target_urls:
-            request = self.get_url_data(url)
-            document = BeautifulSoup(request.content, 'html.parser')
 
-            # html - newsflash_body - type06_headline, type06
-            # 각 페이지에 있는 기사들 가져오기
-            temp_post = document.select('.newsflash_body .type06_headline li dl')
-            temp_post.extend(document.select('.newsflash_body .type06 li dl'))
-            
-            # 각 페이지에 있는 기사들의 url 저장
-            post_urls = []
-            for line in temp_post:
-                if line.dt.get('class'):
-                    title=line.a.img.get('alt')
-                else:
-                    title=line.a.get_text(strip=True)
-                if keyword in title:
-                    post_urls.append(line.a.get('href'))
-            del temp_post
-
-            for content_url in post_urls:  # 기사 url
-                # 크롤링 대기 시간
-                sleep(0.01)
-                
-                # 기사 HTML 가져옴
-                request_content = self.get_url_data(content_url)
-
-                try:
-                    document_content = BeautifulSoup(request_content.content, 'html.parser')
-                except:
-                    continue
-                try:
-                    # 기사 제목 가져옴
-                    tag_headline = document_content.find_all('h2',  {'class': 'media_end_head_headline'})
-                    # 뉴스 기사 제목 초기화
-                    text_headline = ''
-                    text_headline = text_headline + ArticleParser.clear_headline(str(tag_headline[0].find_all(text=True)))
-                    # 공백일 경우 기사 제외 처리
-                    if not text_headline:
-                        continue
-                    #<div class="go_trans _article_content" id="dic_area">
-
-                    # 기사 본문 가져옴
-                    tag_content = document_content.find_all('article', {'id': 'dic_area'})
-                    # 뉴스 기사 본문 초기화
-                    text_sentence = ''
-                    text_sentence = text_sentence + ArticleParser.clear_content(str(tag_content[0].find_all(text=True)))
-                    # 공백일 경우 기사 제외 처리
-                    if not text_sentence:
-                        continue
-
-                    # 기사 언론사 가져옴
-                    tag_content = document_content.find_all('meta', {'property': 'og:article:author'})
-                    # 언론사 초기화
-                    text_company = ''
-                    text_company = text_company + tag_content[0]['content'].split("|")[0]
-
-                    # 공백일 경우 기사 제외 처리
-                    if not text_company:
-                        continue
-                    
-                    # 기사 시간대 가져옴
-                    time = document_content.find_all('span',{'class':"media_end_head_info_datestamp_time _ARTICLE_DATE_TIME"})[0]['data-date-time']
-
-                    # CSV 작성
-                    if keyword in text_headline:
-                        writer.write_row([time, category_name, text_company, text_headline, text_sentence, content_url])
-
-                    del time
-                    del text_company, text_sentence, text_headline
-                    del tag_company 
-                    del tag_content, tag_headline
-                    del request_content, document_content
-
-                # UnicodeEncodeError
-                except Exception as ex:
-                    del request_content, document_content
-                    pass
+        with tqdm(total=len(target_urls)) as pbar:
+            thread_list=[]
+            with ThreadPoolExecutor(max_workers=20) as executor:
+                for url in target_urls:
+                    thread_list.append(executor.submit(self.url_crawler, url,writer,category_name,keyword,pbar))
+                for execution in concurrent.futures.as_completed(thread_list):
+                    execution.result()
         writer.close()
         print('x')
+
+    def url_crawler(self, url, writer,category_name,keyword,pbar):
+        pbar.update(1)
+        request = self.get_url_data(url)
+        document = BeautifulSoup(request.content, 'html.parser')
+
+        # html - newsflash_body - type06_headline, type06
+        # 각 페이지에 있는 기사들 가져오기
+        temp_post = document.select('.newsflash_body .type06_headline li dl')
+        temp_post.extend(document.select('.newsflash_body .type06 li dl'))
+        
+        # 각 페이지에 있는 기사들의 url 저장
+        post_urls = []
+        for line in temp_post:
+            if line.dt.get('class'):
+                title=line.a.img.get('alt')
+            else:
+                title=line.a.get_text(strip=True)
+            if keyword in title:
+                post_urls.append(line.a.get('href'))
+        del temp_post
+
+        for content_url in post_urls:  # 기사 url
+            sleep(0.01)
+            
+            request_content = self.get_url_data(content_url)
+
+            try:
+                document_content = BeautifulSoup(request_content.content, 'html.parser')
+            except:
+                continue
+            try:
+                tag_headline = document_content.find_all('h2',  {'class': 'media_end_head_headline'})
+                text_headline = ''
+                text_headline = text_headline + ArticleParser.clear_headline(str(tag_headline[0].find_all(text=True)))
+                if not text_headline:
+                    continue
+                #<div class="go_trans _article_content" id="dic_area">
+
+                # 기사 본문 가져옴
+                tag_content = document_content.find_all('article', {'id': 'dic_area'})
+                # 뉴스 기사 본문 초기화
+                text_sentence = ''
+                text_sentence = text_sentence + ArticleParser.clear_content(str(tag_content[0].find_all(text=True)))
+                # 공백일 경우 기사 제외 처리
+                if not text_sentence:
+                    continue
+
+                # 기사 언론사 가져옴
+                tag_content = document_content.find_all('meta', {'property': 'og:article:author'})
+                # 언론사 초기화
+                text_company = ''
+                text_company = text_company + tag_content[0]['content'].split("|")[0]
+
+                # 공백일 경우 기사 제외 처리
+                if not text_company:
+                    continue
+                
+                # 기사 시간대 가져옴
+                time = document_content.find_all('span',{'class':"media_end_head_info_datestamp_time _ARTICLE_DATE_TIME"})[0]['data-date-time']
+
+                # CSV 작성
+                if keyword in text_headline:
+                    writer.write_row([time, category_name, text_company, text_headline, text_sentence, content_url])
+
+                del time
+                del text_company, text_sentence, text_headline
+                del tag_company 
+                del tag_content, tag_headline
+                del request_content, document_content
+
+            # UnicodeEncodeError
+            except Exception as ex:
+                del request_content, document_content
+                pass
 
     def start(self,keyword):
         # MultiProcess 크롤링 시작
@@ -239,5 +246,5 @@ if __name__ == "__main__":
     keyword = input('키워드를 입력하세요: ')
     Crawler = ArticleCrawler()
     Crawler.set_category('정치')
-    Crawler.set_date_range('2024-01-30', '2024-02-02')
+    Crawler.set_date_range('2024-03-01', '2024-03-31')
     Crawler.start(keyword)
