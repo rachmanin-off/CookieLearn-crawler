@@ -11,9 +11,9 @@ from bs4 import BeautifulSoup
 from multiprocessing import Process, pool
 from concurrent.futures import ThreadPoolExecutor
 import concurrent.futures
-from exceptions import *
-from articleparser import ArticleParser
-from writer import Writer
+from .exceptions import *
+from .articleparser import ArticleParser
+from .writer import Writer
 
 class ArticleCrawler(object):
     def __init__(self):
@@ -242,9 +242,10 @@ class ArticleCrawler(object):
             proc.start()
 
 
-if __name__ == "__main__":
+'''if __name__ == "__main__":
     keyword = input('키워드를 입력하세요: ')
     Crawler = ArticleCrawler()
     Crawler.set_category('정치')
     Crawler.set_date_range('2024-03-01', '2024-03-31')
     Crawler.start(keyword)
+'''

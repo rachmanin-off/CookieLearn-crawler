@@ -1,6 +1,6 @@
 import csv
 import platform
-from exceptions import *
+from .exceptions import *
 
 
 class Writer(object):
