@@ -17,6 +17,7 @@ from .writer import Writer
 
 class ArticleCrawler(object):
     def __init__(self):
+        print("import test")
         self.categories = {'정치': 100, '경제': 101, '사회': 102, '생활문화': 103, '세계': 104, 'IT과학': 105, '오피니언': 110,
                            'politics': 100, 'economy': 101, 'society': 102, 'living_culture': 103, 'world': 104, 'IT_science': 105, 'opinion': 110}
         self.selected_categories = []
